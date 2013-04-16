@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 import os
-from ConfigParser import ConfigParser
+import argparse
+from openphoto import OpenPhoto
+import ConfigParser
+
+__all__ = ["Config"]
 
 
 class Section(object):
@@ -24,17 +28,55 @@ class Section(object):
 
 class Config(Section):
 
-    def __init__(self, filename):
+    def __init__(self, filename=None):
         super(Config, self).__init__()
+        if not filename:
+            filename = os.path.join(os.path.expanduser("~"), ".config",
+                                    "openphoto-utils", "config.ini")
         self.path = os.path.realpath(filename)
         self.filename = os.path.basename(self.path)
-        config = ConfigParser()
+        config = ConfigParser.ConfigParser()
         config.read(self.path)
         self.add("api", Section())
-        for k in ("host", "consumer.key", "consumer.secret",
-                  "oauth.token", "oauth.secret"):
-            v = config.get("api", k)
+        for k in ("host", "consumer_key", "consumer_secret",
+                  "oauth_token", "oauth_secret"):
+            try:
+                v = config.get("api", k)
+            except ConfigParser.NoSectionError:
+                raise IOError("Cannot parse %s" % (self.path))
+
             if not v:
-                raise KeyError("Missing option %s in [api] section" % k)
+                raise KeyError("Missing option %s in [api] section" % (k))
+
             self.api.add(k.replace(".", "_"), v)
 
+    @property
+    def client(self):
+        if hasattr(self, "_client"):
+            return self._client
+        else:
+            self._client = OpenPhoto(self.api.host, self.api.consumer_key,
+                                     self.api.oauth_token,self.api.oauth_secret)
+            return self._client
+
+    @classmethod
+    def add_argument_to(cls, parser, as_option=False):
+        def convert_config(string):
+            try:
+                return cls(string)
+            except Exception as e:
+                raise argparse.ArgumentTypeError(str(e))
+
+        kw = dict(help="Config file", type=convert_config)
+        try:
+            kw["default"] = Config()
+            if not as_option:
+                kw['nargs'] = "?"
+        except:
+            if as_option:
+                kw['required'] = True
+
+        if not as_option:
+            parser.add_argument("config", **kw)
+        else:
+            parser.add_argument("--config", "-c", **kw)

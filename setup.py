@@ -1,6 +1,12 @@
 
 requires = ["openphoto"]
 try:
+    import argparse
+
+except ImportError:
+    requires.append['argparse']
+
+try:
     from setuptools import setup
     kw = {
         "entry_points": """
