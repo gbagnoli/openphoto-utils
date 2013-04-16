@@ -1,3 +1,4 @@
 .env
 openphoto_utils.egg-info
 *.pyc
+*.ini
