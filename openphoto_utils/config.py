@@ -1,44 +1,40 @@
 #!/usr/bin/env python
 import os
-from collections import Mapping
 from ConfigParser import ConfigParser
 
 
-class Config(Mapping):
+class Section(object):
+
+    def __init__(self):
+        self.keys = []
+
+    def add(self, item, value):
+        object.__setattr__(self, item, value)
+        self.keys.append(item)
+
+    def __getitem__(self, item):
+        try:
+            return getattr(self, item)
+        except AttributeError:
+            raise KeyError(item)
+
+    def __iter__(self):
+        return iter(self.keys)
+
+
+class Config(Section):
 
     def __init__(self, filename):
+        super(Config, self).__init__()
         self.path = os.path.realpath(filename)
         self.filename = os.path.basename(self.path)
         config = ConfigParser()
         config.read(self.path)
-        d = dict()
+        self.add("api", Section())
         for k in ("host", "consumer.key", "consumer.secret",
                   "oauth.token", "oauth.secret"):
-            d[k] = config.get("api", k)
-            if not d[k]:
+            v = config.get("api", k)
+            if not v:
                 raise KeyError("Missing option %s in [api] section" % k)
-        self._data = d
+            self.api.add(k.replace(".", "_"), v)
 
-    def __getattr__(self, attr):
-        try:
-            v = self._data[attr]
-        except KeyError:
-            raise AttributeError(attr)
-        else:
-            setattr(self, attr, v)
-            return v
-
-    def __getitem__(self, item):
-        return self._data[item]
-
-    def __iter__(self):
-        return iter(self._data)
-
-    def __len__(self):
-        return len(self._data)
-
-    def __str__(self):
-        return str(self._data)
-
-    def __repr__(self):
-        return repr(self._data)
