@@ -4,7 +4,7 @@ try:
     import argparse
 
 except ImportError:
-    requires.append['argparse']
+    requires.append('argparse')
 
 try:
     from setuptools import setup
