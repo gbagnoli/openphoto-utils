@@ -17,7 +17,6 @@ try:
         "install_requires": requires
     }
 except ImportError:
-    print("Using distutils")
     from distutils.core import setup
     kw = {
         "scripts": ['scripts/openphoto-downloader'],
