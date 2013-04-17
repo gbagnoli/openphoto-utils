@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 import os
 import argparse
+import logging
+import logging.config
 from openphoto import OpenPhoto
 import ConfigParser
 
+
 __all__ = ["Config"]
+log = logging.getLogger(__name__)
 
 
 class Section(object):
@@ -34,6 +38,7 @@ class Config(Section):
             filename = os.path.join(os.path.expanduser("~"), ".config",
                                     "openphoto-utils", "config.ini")
         self.path = os.path.realpath(filename)
+        logging.config.fileConfig(self.path)
         self.filename = os.path.basename(self.path)
         config = ConfigParser.ConfigParser()
         config.read(self.path)
@@ -55,6 +60,7 @@ class Config(Section):
         if hasattr(self, "_client"):
             return self._client
         else:
+            log.debug("Creating client for %s", self.api.host)
             self._client = OpenPhoto(self.api.host,
                                      self.api.consumer_key, self.api.consumer_secret,
                                      self.api.oauth_token,self.api.oauth_secret)
