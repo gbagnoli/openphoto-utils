@@ -55,7 +55,8 @@ class Config(Section):
         if hasattr(self, "_client"):
             return self._client
         else:
-            self._client = OpenPhoto(self.api.host, self.api.consumer_key,
+            self._client = OpenPhoto(self.api.host,
+                                     self.api.consumer_key, self.api.consumer_secret,
                                      self.api.oauth_token,self.api.oauth_secret)
             return self._client
 
