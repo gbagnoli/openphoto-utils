@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-import os
-import argparse
+from collections import Mapping
 import logging
 import logging.config
+import os
 from openphoto import OpenPhoto
 import ConfigParser
 
@@ -10,109 +10,202 @@ import ConfigParser
 __all__ = ["Config"]
 log = logging.getLogger(__name__)
 
+DEFAULT_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".config",
+                                   "openphoto_utils", "config.ini")
+
+
+class ChainMap(Mapping):
+
+    def __init__(self, *maps):
+        self.maps = list(maps) or []
+
+    def add(self, mapping, pos=None):
+        if not pos:
+            self.maps.append(mapping)
+        else:
+            self.maps.insert(pos, mapping)
+
+    def __getitem__(self, item):
+
+        for mapping in self.maps:
+            try:
+                return mapping[item]
+            except:
+                pass
+
+        raise KeyError(item)
+
+    def __getattr__(self, attr):
+        try:
+            return self[attr]
+        except KeyError:
+            raise AttributeError(attr)
+
+    def __len__(self):
+        return len(set().union(*self.maps))
+
+    def __iter__(self):
+        return iter(set().union(*self.maps))
+
+    def __contains__(self, item):
+        return any(item in m for m in self.maps)
+
+    def __bool__(self):
+        return any(self.maps)
+
+    def __repr__(self):
+        return '{0.__class__.__name__}({1})'.format(
+                    self, ', '.join(map(repr, self.maps)))
+
 
 class Section(object):
 
-    def __init__(self, name, group_parser, config):
+    def __init__(self, name, group_parser, args_pfx=None, env_pfx=None):
+        self.env_pfx = "{}_{}".format(env_pfx, name)
         self.name = name
-        self.args = []
         self.parser = group_parser
-        self._config = config
+        self.args = {}
+        self.envs = {}
+        self.map = ChainMap()
+        self.args_prefix = args_pfx if not args_pfx is None else "{}_".format(self.name)
+        self.required = set()
+
+    def from_config(self, config):
+        if not config.has_section(self.name):
+            return {}
+        res = {}
+        for opt in config.options(self.name):
+            value = config.get(self.name, opt)
+            if not value and opt in self.required:
+                continue
+            res[opt] = value
+        return res
 
     def add_argument(self, *args, **kwargs):
+        env_key = kwargs.pop("env", None)
+        required = kwargs.pop("required", False)
         argument = self.parser.add_argument(*args, **kwargs)
-        try:
-            default = self._config.get(
-                            self.name,
-                            argument.dest.replace("%s_" % (self.name), ""))
-        except ConfigParser.NoSectionError:
-            default = None
+        dest = argument.dest
+        if self.args_prefix:
+            if argument.dest.startswith(self.args_prefix):
+                dest = argument.dest.replace(self.args_prefix, "")
+        else:
+            self.args_prefix = ""
 
-        if default and "default" in kwargs:
-            raise TypeError("%s default has multiple values" % (argument.dest))
-        argument.default = default
-        self.args.append(argument.dest)
+        if not env_key:
+            env_key = "{}_{}".format(self.env_pfx, dest).upper()
+
+        self.args[dest] = argument.default
+        try:
+            self.envs[dest] = os.environ[env_key]
+        except KeyError:
+            pass
+        argument.default = None
+        if required:
+            self.required.add(dest)
         return argument
 
+    def get_map(self, configs, parsed_args):
+        res = {}
+        for arg in self.args:
+            v = getattr(parsed_args, "{}{}".format(self.args_prefix, arg))
+            if v:
+                res[arg] = v
+        self.map.add(res)
+        self.map.add(self.envs)
+        for config in configs:
+            self.map.add(self.from_config(config))
+        res = {}
+        for k, v in self.args.items():
+            if not v and k in self.required:
+                continue
+            res[k] = v
+
+        self.map.add(res)
+        log.debug(self)
+        for arg in self.required:
+            self.map[arg]
+
+        return self.map
+
+    def __getitem__(self, item):
+        return self.map[item]
+
     def __getattr__(self, attr):
-        argname = "%s_%s" % (self.name, attr)
-        try:
-            return getattr(self.parsed_arguments, argname)
+        return getattr(self.map, attr)
 
-        except AttributeError:
-            try:
-                return getattr(self.parsed_arguments, attr)
-            except AttributeError:
-                raise AttributeError(attr)
+    def __repr__(self):
+        return "<Section %s: %s>" % (self.name, self.map)
 
 
-class Config(Section):
+class Config(object):
 
-    def __init__(self, section_name, parser):
+    def __init__(self, app_name, parser, config_section=None):
         self.parser = parser
-        self.args = []
         self.sections = []
-        self.add_config_argument()
+        self.configs = []
+        self.parser.add_argument("config", help="Config file", nargs="?")
+        self.app_name = app_name
+        section_name = config_section or app_name
 
         self.add_section("api")
-        self.api.add_argument("-H", "--api-host", help="API endpoint")
-        self.api.add_argument("-k", "--api-consumer-key", help="API consumer key")
-        self.api.add_argument("-s", "--api-consumer-secret", help="API consumer secret")
-        self.api.add_argument("-t", "--api-oauth-token", help="API oauth token")
-        self.api.add_argument("-S", "--api-oauth-secret", help="API oauth secret")
+        self.api.add_argument("-H", "--api-host", help="API endpoint",
+                              env="openphotoHost", required=True)
+        self.api.add_argument("-k", "--api-consumer-key", help="API consumer key",
+                              env="consumerKey", required=True)
+        self.api.add_argument("-s", "--api-consumer-secret", help="API consumer secret",
+                              env="consumerSecret", required=True)
+        self.api.add_argument("-t", "--api-oauth-token",
+                              help="API oauth token", env="token", required=True)
+        self.api.add_argument("-S", "--api-oauth-secret", help="API oauth secret",
+                              env="tokenSecret", required=True)
+        self.parse_config(DEFAULT_CONFIG_PATH)
+        self.section = self.add_section(section_name, args_pfx="")
 
-        self.add_section(section_name)
-
-    def parse(self, filename=None):
+    def parse_config(self, filename):
         if not filename:
-            filename = os.path.join(os.path.expanduser("~"), ".config",
-                                    "openphoto-utils", "config.ini")
+            return
+
         self.path = os.path.realpath(filename)
-        logging.config.fileConfig(self.path)
-        self.filename = os.path.basename(self.path)
-        config = ConfigParser.ConfigParser()
-        with open(self.path) as f:
-            config.readfp(f)
-
-        self._config = config
-
-    def add_config_argument(self):
-        def parse(string):
-            try:
-                self.parse(string)
-                return string
-
-            except Exception as e:
-                raise argparse.ArgumentTypeError(str(e))
-
-        kw = dict(help="Config file", type=parse)
         try:
-            kw["default"] = self.parse()
-            kw['nargs'] = "?"
+            logging.config.fileConfig(self.path)
+        except:
+            pass
+
+        try:
+            config = ConfigParser.ConfigParser()
+            with open(self.path) as f:
+                config.readfp(f)
+
+            self.configs.insert(0, config)
 
         except:
-            kw['required'] = True
+            log.debug("Cannot parse config file %s", filename)
+            return None
 
-        self.parser.add_argument("config", **kw)
+        else:
+            return self.configs[0]
 
-    def add_section(self, section, description=None):
+    def add_section(self, section, args_pfx=None, env_pfx=None, description=None):
         group = self.parser.add_argument_group(section, description)
-        sect = Section(section, group, self._config)
+        sect = Section(section, group, args_pfx, env_pfx)
         setattr(self, section, sect)
         self.sections.append(sect)
         return sect
 
     def add_argument(self, *args, **kwargs):
-        section = kwargs.pop("section", None)
-        if section:
-            self.sections[section].add_argument(*args, **kwargs)
-        else:
-            self.parser.add_argument(*args, **kwargs)
+        self.section.add_argument(*args, **kwargs)
 
     def parse_args(self, args=None):
         parsed_args = self.parser.parse_args(args)
+        self.parse_config(parsed_args.config)
+
         for s in self.sections:
-            s.parsed_arguments = parsed_args
+            try:
+                s.get_map(self.configs, parsed_args)
+
+            except KeyError as e:
+                self.parser.error("Missing required argument %s in %s section" % (e, s.name))
 
         log.debug("Creating client for %s", self.api.host)
         self.client = OpenPhoto(self.api.host,
