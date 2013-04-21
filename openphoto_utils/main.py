@@ -5,10 +5,10 @@ import httplib2
 log = logging.getLogger(__name__)
 
 
-def run(config, fun, *args, **kwargs):
+def run(fun, config,  *args, **kwargs):
 
     try:
-        fun(*args, **kwargs)
+        fun(config, *args, **kwargs)
 
     except (OSError,) as e:
         log.critical(e)
