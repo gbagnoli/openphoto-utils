@@ -1,4 +1,5 @@
 httplib2==0.8
 oauth2==1.5.211
+requests_oauthlib
 -e git+https://github.com/photo/openphoto-python.git@677a7cf3bdb1969ec3592e6c67f0d95a5c5a7d02#egg=openphoto-dev
 
