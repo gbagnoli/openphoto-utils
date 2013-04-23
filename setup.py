@@ -1,5 +1,6 @@
 
-requires = ["openphoto"]
+requires = ["requests",
+            "requests_oauthlib"]
 try:
     import argparse
 

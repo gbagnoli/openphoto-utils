@@ -2,3 +2,6 @@
 openphoto_utils.egg-info
 *.pyc
 *.ini
+.tox
+.coverage
+build

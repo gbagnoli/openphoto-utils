@@ -3,8 +3,8 @@ from collections import Mapping
 import logging
 import logging.config
 import os
-from openphoto import OpenPhoto
 import ConfigParser
+from .client import  OpenphotoHttpClient
 
 
 __all__ = ["Config"]
@@ -208,6 +208,7 @@ class Config(object):
                 self.parser.error("Missing required argument %s in %s section" % (e, s.name))
 
         log.debug("Creating client for %s", self.api.host)
-        self.client = OpenPhoto(self.api.host,
-                                self.api.consumer_key, self.api.consumer_secret,
-                                self.api.oauth_token,self.api.oauth_secret)
+        self.client = OpenphotoHttpClient(self.api.host, self.api.consumer_key,
+                                          self.api.consumer_secret,
+                                          self.api.oauth_token,
+                                          self.api.oauth_secret)
