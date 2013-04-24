@@ -6,6 +6,5 @@ python:
 # command to install dependencies
 install:
   - pip install . --use-mirrors
-  - pip install argparse mock unittest2 --use-mirrors
 # command to run tests
-script: unittest2 discover tests
+script: ./run_tests.sh
