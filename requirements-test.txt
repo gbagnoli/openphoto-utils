@@ -1,3 +1,2 @@
 coverage
-requests
-requests_oauthlib
+https://github.com/gbagnoli/pyopenphoto/zipball/master

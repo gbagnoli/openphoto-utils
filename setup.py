@@ -1,6 +1,5 @@
 
-requires = ["requests",
-            "requests_oauthlib"]
+requires = ["pyopenphoto"]
 try:
     import argparse
 

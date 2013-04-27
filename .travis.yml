@@ -6,6 +6,7 @@ python:
   - "3.3"
 # command to install dependencies
 install:
+  - pip install https://github.com/gbagnoli/pyopenphoto/zipball/master
   - pip install . --use-mirrors
 # command to run tests
 script: ./run_tests.sh
