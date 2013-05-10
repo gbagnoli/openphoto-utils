@@ -12,6 +12,7 @@ try:
         "entry_points": """
 [console_scripts]
     openphoto-downloader = openphoto_utils.downloader:main
+    openphoto-shell = openphoto_utils.shell:main
 """,
         "zip_safe": False,
         "install_requires": requires
@@ -19,7 +20,7 @@ try:
 except ImportError:
     from distutils.core import setup
     kw = {
-        "scripts": ['scripts/openphoto-downloader'],
+        "scripts": ['scripts/openphoto-downloader', 'scripts/openphoto-shell'],
         "requires": "requires"
     }
 

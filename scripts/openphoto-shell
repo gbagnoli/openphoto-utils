@@ -1,0 +1,4 @@
+#!/usr/bin/env python
+import openphoto_utils
+openphoto_utils.shell.main()
+
