@@ -30,13 +30,23 @@ def main():
 
 def get_env(config):
     env = dict(
-        client = config.client,
-        config = config
+        client=(config.client, "Openphoto raw client"),
+        config=(config, "Config object"),
+        Album=(Album, "Album class"),
+        Photo=(Photo, "Photo class"),
+        Tag=(Tag, "Tag class"),
     )
     return env
 
 
-def run_ipython(env):
+def get_help(env):
+    help_ = "Environment:"
+    for var in sorted(env.keys()):
+        help_ += '\n  %-12s %s' % (var, env[var][1])
+    return help_
+
+
+def run_ipython(env, help_):
     try:
         from IPython.frontend.terminal.embed import (
             InteractiveShellEmbed)
@@ -44,35 +54,37 @@ def run_ipython(env):
     except ImportError:
         raise ShellNotFound("ipython")
 
-    return InteractiveShellEmbed(banner2=""+ '\n', user_ns=env)()
+    return InteractiveShellEmbed(banner2=help_ + '\n', user_ns=env)()
 
 
-def run_bpython(env):
+def run_bpython(env, help_):
     try:
         from bpython import embed
 
     except ImportError:
         raise ShellNotFound("bpython")
 
-    return embed(locals_=env, banner="" + '\n')
+    return embed(locals_=env, banner=help_ + '\n')
 
 
-def run_default(env):
+def run_default(env, help_):
     from code import interact
     cprt = 'Type "help" for more information.'
     banner = "Python %s on %s\n%s" % (sys.version, sys.platform, cprt)
-    banner += '\n\n' + "" + '\n'
+    banner += '\n\n' + help_ + '\n'
     return interact(banner, local=env)
 
 
 def run_shell(config, shell):
     env = get_env(config)
+    help_ = get_help(env)
+    env = {k: v[0] for k,v in env.items()}
     if shell == "ipython":
-        return run_ipython(env)
+        return run_ipython(env, help_)
     elif shell == "bpython":
-        return run_bpython(env)
+        return run_bpython(env, help_)
     else:
-        return run_default(env)
+        return run_default(env, help_)
 
 
 def select_shell(config, shell):
