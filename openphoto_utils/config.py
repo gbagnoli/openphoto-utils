@@ -159,6 +159,7 @@ class Config(object):
                               help="API oauth token", env="token", required=True)
         self.api.add_argument("-S", "--api-oauth-secret", help="API oauth secret",
                               env="tokenSecret", required=True)
+        self.api.add_argument("--api-debug-http", help="Set debug level on httplib")
         self.parse_config(DEFAULT_CONFIG_PATH)
         self.section = self.add_section(section_name, args_pfx="")
 
@@ -208,7 +209,14 @@ class Config(object):
                 self.parser.error("Missing required argument %s in %s section" % (e, s.name))
 
         log.debug("Creating client for %s", self.api.host)
-        self.client = Client(self.api.host, self.api.consumer_key,
-                                          self.api.consumer_secret,
-                                          self.api.oauth_token,
-                                          self.api.oauth_secret)
+        try:
+            debug_level = int(self.api.debug_http)
+        except (TypeError, ValueError) as e:
+            debug_level = None
+
+        self.client = Client(self.api.host,
+                             self.api.consumer_key,
+                             self.api.consumer_secret,
+                             self.api.oauth_token,
+                             self.api.oauth_secret,
+                             http_debug_level=debug_level)
