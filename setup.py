@@ -2,6 +2,7 @@
 requires = ["pyopenphoto"]
 try:
     import argparse
+    argparse
 
 except ImportError:
     requires.append('argparse')
@@ -13,6 +14,7 @@ try:
 [console_scripts]
     openphoto-downloader = openphoto_utils.downloader:main
     openphoto-shell = openphoto_utils.shell:main
+    openphoto-importer = openphoto_utils.importer:main
 """,
         "zip_safe": False,
         "install_requires": requires
@@ -20,7 +22,8 @@ try:
 except ImportError:
     from distutils.core import setup
     kw = {
-        "scripts": ['scripts/openphoto-downloader', 'scripts/openphoto-shell'],
+        "scripts": ['scripts/openphoto-downloader', 'scripts/openphoto-shell',
+                    'scripts/openphoto-importer'],
         "requires": "requires"
     }
 
