@@ -1,4 +1,5 @@
 import logging
+from requests.exceptions import RequestException
 
 log = logging.getLogger(__name__)
 
@@ -8,7 +9,7 @@ def run(fun, config,  *args, **kwargs):
     try:
         fun(config, *args, **kwargs)
 
-    except (OSError,) as e:
+    except (OSError, RequestException) as e:
         log.critical(e)
 
     except Exception as e:
