@@ -15,6 +15,9 @@ def run(fun, config,  *args, **kwargs):
     except Exception as e:
         log.exception("Unknown error [%s]", type(e))
 
+    except KeyboardInterrupt:
+        log.info("Terminated.")
+
     else:
         return 0
 
