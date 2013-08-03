@@ -26,6 +26,11 @@ def main():
                         help="Create albums from directories", default=False)
     config.add_argument("-c", "--hashes", action="store_true",
                         help="Compare hashes before uploading", default=False)
+    config.add_argument("-t", "--tag", action="append",
+                        help="Add tags to photos (can be \
+                        specified multiple times)")
+    config.add_argument("--public", action="store_true",
+                        default=False, help="Make photos public")
     config.parse_args()
 
     if config.importer.album and config.importer.create_albums:
@@ -50,7 +55,8 @@ def main():
                album=config.importer.album,
                recurse=config.importer.recurse,
                create_albums=config.importer.create_albums,
-               compare_hash=config.importer.hashes)
+               compare_hash=config.importer.hashes,
+               tags=config.importer.tag, public=config.importer.public)
 
 
 def init_hashes(config):
@@ -59,18 +65,21 @@ def init_hashes(config):
 
 
 def import_photo(config, target, albums=None, hashes=None,
-                 raise_errors=False):
+                 raise_errors=False, tags=None, public=False):
     photo = None
+    private = not public
     if hashes:
         photo = hashes.get(hash_(target))
         if photo:
-            log.info("%s hash found, skipping import", target)
-            if albums:
-                photo.add_to(albums)
+            log.info("%s hash found, skipping upload, updating info", target)
+            photo.update(tags=tags, tags_action="add",
+                         private=private, albums=albums)
             return photo
 
+
     try:
-        photo = Photo.create(config.client, target, albums=albums)
+        photo = Photo.create(config.client, target, albums=albums,
+                             tags=tags, private=private)
 
     except HTTPError as e:
         if e.response.status_code == 409:
@@ -85,10 +94,14 @@ def import_photo(config, target, albums=None, hashes=None,
 
 
 def import_directories(config, targets, album=None, recurse=False,
-                       create_albums=False, compare_hash=False):
+                       create_albums=False, compare_hash=False,
+                       tags=None, public=False):
     if album:
         album = Album.create(config.client, name=album,
                                 return_existing=True)
+
+    if not tags:
+        tags = []
 
     hashes = None
     if compare_hash:
@@ -108,11 +121,13 @@ def import_directories(config, targets, album=None, recurse=False,
 
             for file_ in files:
                 import_photo(config, os.path.join(root, file_), albums=album,
-                             hashes=hashes)
+                             hashes=hashes, tags=tags,
+                             public=public)
 
 
 def import_files(config, targets, album=None, recurse=False,
-                 create_albums=False, compare_hash=False):
+                 create_albums=False, compare_hash=False,
+                 tags=None, public=False):
     if recurse:
         log.warn("recurse ignored with files")
     if create_albums:
@@ -126,9 +141,15 @@ def import_files(config, targets, album=None, recurse=False,
         album = Album.create(config.client, album, True)
         log.info("Uploading to album %s", album)
 
+    if tags:
+        log.info("Adding tags: %s", tags)
+    else:
+        tags = []
+
     for file_ in targets:
         file_ = os.path.realpath(file_)
         import_photo(config, file_, albums=album,
-                     hashes=hashes)
+                     hashes=hashes, tags=tags,
+                     public=public)
 
 
