@@ -151,13 +151,13 @@ class Config(object):
         self.add_section("api")
         self.api.add_argument("-H", "--api-host", help="API endpoint",
                               env="openphotoHost", required=True)
-        self.api.add_argument("-k", "--api-consumer-key", help="API consumer key",
+        self.api.add_argument("-K", "--api-consumer-key", help="API consumer key",
                               env="consumerKey", required=True)
-        self.api.add_argument("-s", "--api-consumer-secret", help="API consumer secret",
+        self.api.add_argument("-S", "--api-consumer-secret", help="API consumer secret",
                               env="consumerSecret", required=True)
-        self.api.add_argument("-t", "--api-oauth-token",
+        self.api.add_argument("-T", "--api-oauth-token",
                               help="API oauth token", env="token", required=True)
-        self.api.add_argument("-S", "--api-oauth-secret", help="API oauth secret",
+        self.api.add_argument("-X", "--api-oauth-secret", help="API oauth secret",
                               env="tokenSecret", required=True)
         self.api.add_argument("--api-debug-http", help="Set debug level on httplib")
         self.parse_config(DEFAULT_CONFIG_PATH)
