@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 import argparse
+from requests.exceptions import HTTPError
 import logging
 import os
 from openphoto import (Album,
                        Photo)
+from openphoto.utils import hash_
 from .config import Config
 from .main import run
 
@@ -22,6 +24,8 @@ def main():
                         action="store_true", default=False)
     config.add_argument("-C", "--create-albums", action="store_true",
                         help="Create albums from directories", default=False)
+    config.add_argument("-c", "--hashes", action="store_true",
+                        help="Compare hashes before uploading", default=False)
     config.parse_args()
 
     if config.importer.album and config.importer.create_albums:
@@ -45,42 +49,86 @@ def main():
     return run(func, config, config.importer.target,
                album=config.importer.album,
                recurse=config.importer.recurse,
-               create_albums=config.importer.create_albums)
+               create_albums=config.importer.create_albums,
+               compare_hash=config.importer.hashes)
 
 
-def import_photo(config, target, album):
-    photo = Photo.create(config.client, target)
-    if album:
-        album.add(photo)
+def init_hashes(config):
+    log.info("Getting remote hashes")
+    return {p.hash: p for p in Photo.all(config.client)}
+
+
+def import_photo(config, target, albums=None, hashes=None,
+                 raise_errors=False):
+    photo = None
+    if hashes:
+        photo = hashes.get(hash_(target))
+        if photo:
+            log.info("%s hash found, skipping import", target)
+            if albums:
+                photo.add_to(albums)
+            return photo
+
+    try:
+        photo = Photo.create(config.client, target, albums=albums)
+
+    except HTTPError as e:
+        if e.response.status_code == 409:
+            log.debug("Photo hash already exists, skipping")
+        else:
+            if raise_errors:
+                raise e
+            else:
+                log.critical("Error while uploading %s to %s",
+                             target, albums)
+    return photo
 
 
 def import_directories(config, targets, album=None, recurse=False,
-                       create_albums=False):
+                       create_albums=False, compare_hash=False):
+    if album:
+        album = Album.create(config.client, name=album,
+                                return_existing=True)
+
+    hashes = None
+    if compare_hash:
+        hashes = init_hashes(config)
+
     for target in targets:
-        for root, dirs, files in target:
+        for root, dirs, files in os.walk(target):
             if not recurse:
                 del dirs[:]
             if create_albums:
+                album_name = os.path.basename(root[:-1]).title()
                 album = Album.create(config.client,
-                                      name=os.path.basename(root).title())
-            elif album:
-                album = Album.get(config.client, album)
+                                     name=album_name,
+                                     return_existing=True)
+
+                log.info("Uploading to album %s", album)
 
             for file_ in files:
-                import_photo(config, os.path.join(root, file_), album=album)
+                import_photo(config, os.path.join(root, file_), albums=album,
+                             hashes=hashes)
+
 
 def import_files(config, targets, album=None, recurse=False,
-                 create_albums=False):
+                 create_albums=False, compare_hash=False):
     if recurse:
         log.warn("recurse ignored with files")
     if create_albums:
         log.warn("create_albums ignored with files")
 
+    hashes = None
+    if compare_hash:
+        hashes = init_hashes(config)
+
     if album:
-        album = Album.get(config.client, album)
+        album = Album.create(config.client, album, True)
+        log.info("Uploading to album %s", album)
 
     for file_ in targets:
         file_ = os.path.realpath(file_)
-        import_photo(config, file_, album=album)
+        import_photo(config, file_, albums=album,
+                     hashes=hashes)
 
 
