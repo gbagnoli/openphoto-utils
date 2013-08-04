@@ -77,10 +77,10 @@ def import_photo(config, target, albums=None, hashes=None,
         photo = hashes.get(hash_(target))
         if photo:
             log.info("%s hash found, skipping upload, updating info", target)
-            photo.update(tags=tags, tags_action="add",
-                         private=private, albums=albums)
             if remove_tags:
                 photo.update(tags=remove_tags, action="remove")
+            photo.update(tags=tags, tags_action="add",
+                         private=private, albums=albums)
             return photo
 
 
