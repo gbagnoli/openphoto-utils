@@ -29,6 +29,9 @@ def main():
     config.add_argument("-t", "--tag", action="append",
                         help="Add tags to photos (can be \
                         specified multiple times)")
+    config.add_argument("-R", "--remove-tag", action="append",
+                        help="Remove tags from photos (can be \
+                        specified multiple times)")
     config.add_argument("--public", action="store_true",
                         default=False, help="Make photos public")
     config.parse_args()
@@ -56,7 +59,8 @@ def main():
                recurse=config.importer.recurse,
                create_albums=config.importer.create_albums,
                compare_hash=config.importer.hashes,
-               tags=config.importer.tag, public=config.importer.public)
+               tags=config.importer.tag, public=config.importer.public,
+               remove_tags=config.importer.remove_tags)
 
 
 def init_hashes(config):
@@ -65,7 +69,8 @@ def init_hashes(config):
 
 
 def import_photo(config, target, albums=None, hashes=None,
-                 raise_errors=False, tags=None, public=False):
+                 raise_errors=False, tags=None, public=False,
+                 remove_tags=None):
     photo = None
     private = not public
     if hashes:
@@ -74,6 +79,8 @@ def import_photo(config, target, albums=None, hashes=None,
             log.info("%s hash found, skipping upload, updating info", target)
             photo.update(tags=tags, tags_action="add",
                          private=private, albums=albums)
+            if remove_tags:
+                photo.update(tags=remove_tags, action="remove")
             return photo
 
 
@@ -95,13 +102,13 @@ def import_photo(config, target, albums=None, hashes=None,
 
 def import_directories(config, targets, album=None, recurse=False,
                        create_albums=False, compare_hash=False,
-                       tags=None, public=False):
+                       tags=None, public=False, remove_tags=None):
     if album:
         album = Album.create(config.client, name=album,
                                 return_existing=True)
 
-    if not tags:
-        tags = []
+    tags = tags or []
+    remove_tags = remove_tags or []
 
     hashes = None
     if compare_hash:
@@ -122,12 +129,13 @@ def import_directories(config, targets, album=None, recurse=False,
             for file_ in files:
                 import_photo(config, os.path.join(root, file_), albums=album,
                              hashes=hashes, tags=tags,
-                             public=public)
+                             public=public, remove_tags=remove_tags)
 
 
 def import_files(config, targets, album=None, recurse=False,
                  create_albums=False, compare_hash=False,
-                 tags=None, public=False):
+                 tags=None, public=False,
+                 remove_tags=None):
     if recurse:
         log.warn("recurse ignored with files")
     if create_albums:
@@ -141,15 +149,13 @@ def import_files(config, targets, album=None, recurse=False,
         album = Album.create(config.client, album, True)
         log.info("Uploading to album %s", album)
 
-    if tags:
-        log.info("Adding tags: %s", tags)
-    else:
-        tags = []
+    tags = tags or []
+    remove_tags = remove_tags or []
 
     for file_ in targets:
         file_ = os.path.realpath(file_)
         import_photo(config, file_, albums=album,
                      hashes=hashes, tags=tags,
-                     public=public)
+                     public=public, remove_tags=remove_tags)
 
 
