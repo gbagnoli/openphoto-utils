@@ -60,7 +60,7 @@ def main():
                create_albums=config.importer.create_albums,
                compare_hash=config.importer.hashes,
                tags=config.importer.tag, public=config.importer.public,
-               remove_tags=config.importer.remove_tags)
+               remove_tags=config.importer.remove_tag)
 
 
 def init_hashes(config):
@@ -78,7 +78,7 @@ def import_photo(config, target, albums=None, hashes=None,
         if photo:
             log.info("%s hash found, skipping upload, updating info", target)
             if remove_tags:
-                photo.update(tags=remove_tags, action="remove")
+                photo.update(tags=remove_tags, tags_action="remove")
             photo.update(tags=tags, tags_action="add",
                          private=private, albums=albums)
             return photo
