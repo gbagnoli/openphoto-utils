@@ -139,6 +139,7 @@ class Section(object):
 
 
 class Config(object):
+    default_dir = os.path.dirname(DEFAULT_CONFIG_PATH)
 
     def __init__(self, app_name, parser, config_section=None):
         self.parser = parser

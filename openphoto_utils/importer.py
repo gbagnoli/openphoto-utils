@@ -4,6 +4,10 @@ import argparse
 from requests.exceptions import HTTPError
 import logging
 import os
+try:
+    import cPickle as pickle
+except:
+    import pickle
 from openphoto import (Album,
                        Photo)
 from openphoto.utils import hash_
@@ -15,7 +19,7 @@ log = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(
-                description="Import photos to openphoto/trovebox")
+        description="Import photos to openphoto/trovebox")
     config = Config("importer", parser)
     config.add_argument("target", help="Directory or file to upload",
                         required=True, nargs="+")
@@ -34,6 +38,10 @@ def main():
                         specified multiple times)")
     config.add_argument("--public", action="store_true",
                         default=False, help="Make photos public")
+    config.add_argument(
+        '--skip-update-if-hashed', "-U", action="store_true",
+        default=False,
+        help="Do not update metadata if photo is found in hashes")
     config.parse_args()
 
     if config.importer.album and config.importer.create_albums:
@@ -60,29 +68,50 @@ def main():
                create_albums=config.importer.create_albums,
                compare_hash=config.importer.hashes,
                tags=config.importer.tag, public=config.importer.public,
-               remove_tags=config.importer.remove_tag)
+               remove_tags=config.importer.remove_tag,
+               skip_update_if_hashed=config.importer
+               .skip_update_if_hashed)
 
 
 def init_hashes(config):
-    log.info("Getting remote hashes")
-    return {p.hash: p for p in Photo.all(config.client)}
+    hfile = os.path.join(config.default_dir,
+                         "photos.hashes.cache")
+    try:
+        with open(hfile) as f:
+            hashes = pickle.load(f)
+        log.info("Using stored hashes")
+
+    except:
+        log.exception('Error getting stored hashes')
+        log.info("Getting remote hashes")
+        hashes = {p.hash: p for p in Photo.all(config.client)}
+        with open(hfile, "wb") as f:
+            pickle.dump(hashes, f)
+
+    return hashes
 
 
 def import_photo(config, target, albums=None, hashes=None,
                  raise_errors=False, tags=None, public=False,
-                 remove_tags=None):
+                 remove_tags=None, skip_update_if_hashed=False):
+    if "mp4" in target:
+        return None
+
     photo = None
     private = not public
     if hashes:
         photo = hashes.get(hash_(target))
         if photo:
+            if skip_update_if_hashed:
+                log.info("%s hash found, skipping upload/update", target)
+                return photo
+
             log.info("%s hash found, skipping upload, updating info", target)
             if remove_tags:
                 photo.update(tags=remove_tags, tags_action="remove")
             photo.update(tags=tags, tags_action="add",
                          private=private, albums=albums)
             return photo
-
 
     try:
         photo = Photo.create(config.client, target, albums=albums,
@@ -102,10 +131,11 @@ def import_photo(config, target, albums=None, hashes=None,
 
 def import_directories(config, targets, album=None, recurse=False,
                        create_albums=False, compare_hash=False,
-                       tags=None, public=False, remove_tags=None):
+                       tags=None, public=False, remove_tags=None,
+                       skip_update_if_hashed=False):
     if album:
         album = Album.create(config.client, name=album,
-                                return_existing=True)
+                             return_existing=True)
 
     tags = tags or []
     remove_tags = remove_tags or []
@@ -129,13 +159,14 @@ def import_directories(config, targets, album=None, recurse=False,
             for file_ in files:
                 import_photo(config, os.path.join(root, file_), albums=album,
                              hashes=hashes, tags=tags,
-                             public=public, remove_tags=remove_tags)
+                             public=public, remove_tags=remove_tags,
+                             skip_update_if_hashed=skip_update_if_hashed)
 
 
 def import_files(config, targets, album=None, recurse=False,
                  create_albums=False, compare_hash=False,
                  tags=None, public=False,
-                 remove_tags=None):
+                 remove_tags=None, skip_update_if_hashed=False):
     if recurse:
         log.warn("recurse ignored with files")
     if create_albums:
@@ -156,6 +187,5 @@ def import_files(config, targets, album=None, recurse=False,
         file_ = os.path.realpath(file_)
         import_photo(config, file_, albums=album,
                      hashes=hashes, tags=tags,
-                     public=public, remove_tags=remove_tags)
-
-
+                     public=public, remove_tags=remove_tags,
+                     skip_update_if_hashed=skip_update_if_hashed)
