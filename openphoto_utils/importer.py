@@ -30,6 +30,8 @@ def main():
                         help="Create albums from directories", default=False)
     config.add_argument("-c", "--hashes", action="store_true",
                         help="Compare hashes before uploading", default=False)
+    config.add_argument("--refresh-hashes", action="store_true",
+                        default=False, help="Refresh hashes from remote")
     config.add_argument("-t", "--tag", action="append",
                         help="Add tags to photos (can be \
                         specified multiple times)")
@@ -76,6 +78,12 @@ def main():
 def init_hashes(config):
     hfile = os.path.join(config.default_dir,
                          "photos.hashes.cache")
+    if config.importer.refresh_hashes:
+        try:
+            os.unlink(hfile)
+
+        except:
+            pass
     try:
         with open(hfile) as f:
             hashes = pickle.load(f)
@@ -85,16 +93,27 @@ def init_hashes(config):
         log.exception('Error getting stored hashes')
         log.info("Getting remote hashes")
         hashes = {p.hash: p for p in Photo.all(config.client)}
-        with open(hfile, "wb") as f:
-            pickle.dump(hashes, f)
 
     return hashes
+
+
+def write_hashes(config, hashes):
+    if not hashes:
+        return
+
+    hfile = os.path.join(config.default_dir,
+                         "photos.hashes.cache")
+    log.info("Writing hashes to %s", hfile)
+
+    with open(hfile, "wb") as f:
+        pickle.dump(hashes, f)
 
 
 def import_photo(config, target, albums=None, hashes=None,
                  raise_errors=False, tags=None, public=False,
                  remove_tags=None, skip_update_if_hashed=False):
-    if "mp4" in target:
+    t = target.lower()
+    if "mp4" in t or "avi" in t:
         return None
 
     photo = None
@@ -157,10 +176,16 @@ def import_directories(config, targets, album=None, recurse=False,
                 log.info("Uploading to album %s", album)
 
             for file_ in files:
-                import_photo(config, os.path.join(root, file_), albums=album,
-                             hashes=hashes, tags=tags,
-                             public=public, remove_tags=remove_tags,
-                             skip_update_if_hashed=skip_update_if_hashed)
+                photo = import_photo(
+                    config, os.path.join(root, file_), albums=album,
+                    hashes=hashes, tags=tags,
+                    public=public, remove_tags=remove_tags,
+                    skip_update_if_hashed=skip_update_if_hashed
+                )
+                if hashes and photo:
+                    hashes[photo.hash] = photo
+
+    write_hashes(config, hashes)
 
 
 def import_files(config, targets, album=None, recurse=False,
@@ -185,7 +210,13 @@ def import_files(config, targets, album=None, recurse=False,
 
     for file_ in targets:
         file_ = os.path.realpath(file_)
-        import_photo(config, file_, albums=album,
-                     hashes=hashes, tags=tags,
-                     public=public, remove_tags=remove_tags,
-                     skip_update_if_hashed=skip_update_if_hashed)
+        photo = import_photo(
+            config, file_, albums=album,
+            hashes=hashes, tags=tags,
+            public=public, remove_tags=remove_tags,
+            skip_update_if_hashed=skip_update_if_hashed
+        )
+        if hashes and photo:
+            hashes[photo.hash] = photo
+
+    write_hashes(config, hashes)
